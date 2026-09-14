@@ -236,10 +236,31 @@
     <button id="proposeBtn">+ Nuovo tavolo opperen</button>
   </div>
 
+  <div class="new-table" id="notifyBox" style="margin-top:12px;">
+    <p>🔔 Wil je een seintje op je mail als er iemand aan een tafel gaat zitten?</p>
+    <input class="name-input" id="notifyEmail" type="email" placeholder="jij@email.nl" style="margin-bottom:8px;">
+    <button id="notifySubmitBtn">Aanmelden</button>
+    <p id="notifyMsg" style="font-size:11.5px; color:var(--cream-dim); margin-top:8px; display:none;"></p>
+  </div>
+
   <p class="footnote">
     Elk tafelgesprek gebruikt een eigen, besloten Whereby-kamer.<br>
-    Je kunt pas naar een andere tafel als je huidige gesprek is afgelopen.
+    Je kunt pas naar een andere tafel als je huidige gesprek is afgelopen.<br>
+    © Jan den Hollander
   </p>
+</div>
+
+<!-- toegangscode gate -->
+<div class="modal-bg show" id="accessModal">
+  <div class="modal">
+    <h2>Benvenuto, ospite atteso · Welkom, genodigde</h2>
+    <button class="iconbtn" id="accessTtsBtn" type="button" aria-label="Beluister de instructies" style="margin-bottom:10px;">🔊</button>
+    <p class="it" style="font-family:var(--font-display); font-style:italic; margin-bottom:2px;">Questo caffè è per ora solo per gli invitati. Inserisci il codice che hai ricevuto.</p>
+    <p style="color:var(--cream-dim); font-size:12.5px;">Deze app is voorlopig alleen voor genodigden. Vul de code in die je hebt gekregen.</p>
+    <input class="name-input" id="accessInput" placeholder="Codice di accesso · Toegangscode" autocomplete="off">
+    <p id="accessError" style="color:#e79aa6; font-size:12.5px; margin-top:6px; display:none;">Codice errato, riprova · Onjuiste code, probeer opnieuw.</p>
+    <button class="save-btn" id="accessSubmitBtn">Entra → · Naar binnen →</button>
+  </div>
 </div>
 
 <!-- avatar keuze modal -->
@@ -406,6 +427,23 @@ function renderTables(){
   });
 }
 
+// Meldingsmail via Web3Forms: stuurt een mailtje naar jandenhollander@duck.com
+// zodra iemand daadwerkelijk een tafel binnengaat. Faalt de verzending (geen
+// internet, dienst plat), dan merkt de bezoeker daar niets van — het café
+// blijft gewoon werken.
+const WEB3FORMS_ACCESS_KEY = '629e9d56-412a-49ac-b0a5-9554ae313a88';
+function sendCafeNotification(topic){
+  fetch('https://api.web3forms.com/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      access_key: WEB3FORMS_ACCESS_KEY,
+      subject: 'Iemand zit in het café',
+      message: `Er is zojuist iemand aan tafel "${topic}" gaan zitten in Caffè Italiano.`
+    })
+  }).catch(()=>{});
+}
+
 function joinTable(t){
   if(!myAvatar){ openAvatarModal(); return; }
   document.getElementById('videoTitle').textContent = 'Tavolo · ' + t.topic;
@@ -416,7 +454,32 @@ function joinTable(t){
   }
   document.getElementById('roomFrame').src = src;
   document.getElementById('videoOverlay').classList.add('show');
+  sendCafeNotification(t.topic);
 }
+
+document.getElementById('notifySubmitBtn').addEventListener('click', async ()=>{
+  const emailInput = document.getElementById('notifyEmail');
+  const msg = document.getElementById('notifyMsg');
+  const email = emailInput.value.trim();
+  if(!email || !email.includes('@')){
+    msg.textContent = 'Vul een geldig e-mailadres in.';
+    msg.style.display = 'block';
+    return;
+  }
+  try{
+    const r = await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email })
+    });
+    if(!r.ok) throw new Error('mislukt');
+    msg.textContent = 'Gelukt! Je krijgt nu een seintje als er iemand aan tafel gaat.';
+    emailInput.value = '';
+  }catch(e){
+    msg.textContent = 'Er ging iets mis, probeer het later opnieuw.';
+  }
+  msg.style.display = 'block';
+});
 
 document.getElementById('leaveBtn').addEventListener('click', ()=>{
   document.getElementById('roomFrame').src = '';
@@ -466,12 +529,7 @@ document.getElementById('ttsBtn').addEventListener('click', ()=>{
   if(!('speechSynthesis' in window)) return alert('Spraak wordt niet ondersteund op dit toestel.');
   speakWelcome();
 });
-// Automatische, licht vertraagde eerste begroeting. Let op: sommige mobiele browsers
-// blokkeren gesproken geluid zonder eerdere aanraking van de pagina — de 🔊-knop
-// blijft daarom altijd als handmatig alternatief beschikbaar.
-window.addEventListener('load', ()=>{
-  setTimeout(()=>{ try{ speakWelcome(); }catch(e){} }, 700);
-});
+// Automatische begroeting gebeurt nu pas na een geldige toegangscode, in startApp().
 
 // NL uitleg
 document.getElementById('nlBtn').addEventListener('click', ()=> document.getElementById('nlModal').classList.add('show'));
@@ -480,8 +538,60 @@ document.getElementById('proposeBtn').addEventListener('click', ()=>{
   alert('Nog niet actief in deze eerste versie — hier komt straks een formulier om zelf een tafelonderwerp voor te stellen.');
 });
 
-updatePortalState();
-openAvatarModal();
+// --- toegangscode: pas hier je eigen code aan ---
+const ACCESS_CODE = 'CAFFE2026';
+
+function startApp(){
+  updatePortalState();
+  openAvatarModal();
+  setTimeout(()=>{ try{ speakWelcome(); }catch(e){} }, 700);
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+}
+
+// TTS voor de toegangscode-stap, zodat ook slechtzienden weten wat er van ze
+// verwacht wordt (code invullen, dan op 'Naar binnen' tikken).
+function speakAccessPrompt(){
+  if(!('speechSynthesis' in window)) return;
+  const msg = new SpeechSynthesisUtterance('Benvenuto! Inserisci il codice di accesso che hai ricevuto, poi tocca il pulsante Entra.');
+  msg.lang = 'it-IT';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(msg);
+}
+document.getElementById('accessTtsBtn').addEventListener('click', ()=>{
+  if(!('speechSynthesis' in window)) return alert('Spraak wordt niet ondersteund op dit toestel.');
+  speakAccessPrompt();
+});
+
+function checkAccess(){
+  if(localStorage.getItem('ci_access_ok') === '1'){
+    document.getElementById('accessModal').classList.remove('show');
+    startApp();
+    return;
+  }
+  document.getElementById('accessModal').classList.add('show');
+  // automatische poging; sommige telefoons staan dit pas toe na een tik ergens op
+  // de pagina — de 🔊-knop hierboven blijft dan het handmatige alternatief
+  setTimeout(()=>{ try{ speakAccessPrompt(); }catch(e){} }, 500);
+}
+
+document.getElementById('accessSubmitBtn').addEventListener('click', ()=>{
+  const val = document.getElementById('accessInput').value.trim();
+  if(val === ACCESS_CODE){
+    localStorage.setItem('ci_access_ok', '1');
+    document.getElementById('accessError').style.display = 'none';
+    document.getElementById('accessModal').classList.remove('show');
+    startApp();
+  } else {
+    document.getElementById('accessError').style.display = 'block';
+  }
+});
+document.getElementById('accessInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') document.getElementById('accessSubmitBtn').click();
+});
+
+checkAccess();
 </script>
 </body>
 </html>

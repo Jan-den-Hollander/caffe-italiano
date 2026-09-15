@@ -2,7 +2,7 @@
   "name": "Caffè Italiano",
   "short_name": "Caffè Italiano",
   "description": "Oefen Italiaans spreken aan een virtuele cafétafel",
-  "start_url": "./caffe-italiano.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#1c140f",

@@ -4,18 +4,16 @@
 // BELANGRIJK bij elke update van index.html / avatars / manifest / icons:
 // verhoog het versienummer hieronder (bv. 'v2', 'v3', ...). Anders blijven
 // bezoekers de oude, gecachte versie zien.
-const CACHE_NAME = 'caffe-italiano-v1';
+const CACHE_NAME = 'caffe-italiano-v2';
 
 // Alles wat nodig is om de app zonder internet te openen.
-// Let op: pas de avatar-paden aan zodra je kiest of ze in avatars/ staan
-// of in de hoofdmap (zie het path-probleem dat we net oplosten).
 const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/apple-touch-icon.png',
-  './1789331721645.jpg',
+  './icon-192.png',
+  './apple-touch-icon.png',
+  './1789331721645.jpg?v=2',
   './avatars/avatar_01.png',
   './avatars/avatar_02.png',
   './avatars/avatar_03.png',
